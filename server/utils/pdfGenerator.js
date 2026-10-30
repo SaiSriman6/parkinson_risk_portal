@@ -25,6 +25,8 @@ function generateReportPDF(prediction, res) {
     accentColor = "#f59e0b"; // Amber
   } else if (prediction.riskLevel === "High") {
     accentColor = "#ef4444"; // Red
+  } else if (prediction.riskLevel === "Indeterminate") {
+    accentColor = "#0284c7"; // Clinical Blue for Indeterminate / Screening
   }
 
   // Safe feature getter helper
@@ -50,20 +52,39 @@ function generateReportPDF(prediction, res) {
       doc.fillColor("#ffffff")
          .fontSize(10)
          .font("Helvetica-Bold")
-         .text("YOUR VOICE ASSESSMENT REPORT (Continued)", 50, 12);
+         .text(
+           isMRI
+             ? "YOUR MRI NEUROIMAGING REPORT (Continued)"
+             : isGait
+             ? "YOUR VIDEO GAIT ASSESSMENT REPORT (Continued)"
+             : "YOUR VOICE ASSESSMENT REPORT (Continued)",
+           50, 12
+         );
       currentY = 55;
     }
   };
+
+  const isMRI = prediction.predictionType === "mri";
+  const isGait = prediction.predictionType === "video_gait" || prediction.predictionType === "video";
+  let headerTitle = "YOUR VOICE ASSESSMENT REPORT";
+  let headerSubtitle = "Personal Vocal Acoustic Summary & Research Pattern Analysis";
+  if (isMRI) {
+    headerTitle = "YOUR MRI NEUROIMAGING REPORT";
+    headerSubtitle = "Personal Neuroimaging Structural Pattern Summary & Research Analysis";
+  } else if (isGait) {
+    headerTitle = "YOUR VIDEO GAIT ASSESSMENT REPORT";
+    headerSubtitle = "Personal Computer-Vision Gait Kinematics & Motor Biomarker Summary";
+  }
 
   // --- SECTION A: REPORT HEADER ---
   doc.rect(0, 0, 595.28, 110).fill(primaryColor);
   doc.fillColor("#ffffff")
      .fontSize(20)
      .font("Helvetica-Bold")
-     .text("YOUR VOICE ASSESSMENT REPORT", 50, 30);
+     .text(headerTitle, 50, 30);
   doc.fontSize(10)
      .font("Helvetica")
-     .text("Personal Vocal Acoustic Summary & Research Pattern Analysis", 50, 58);
+     .text(headerSubtitle, 50, 58);
   
   const assessmentDate = prediction.createdAt 
     ? new Date(prediction.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -92,24 +113,266 @@ function generateReportPDF(prediction, res) {
   doc.rect(50, currentY, 6, 75).fill(accentColor);
 
   doc.fillColor(darkTextColor).fontSize(10).font("Helvetica-Bold").text("Pattern Assessment Outcome", 68, currentY + 12);
-  doc.fontSize(16).fillColor(accentColor).font("Helvetica-Bold").text(`${prediction.riskLevel} Risk Classification`, 68, currentY + 28);
-  doc.fontSize(9).fillColor(mutedTextColor).font("Helvetica").text("Automated voice sample evaluation", 68, currentY + 50);
+  const outcomeLabel = isMRI && prediction.mriDetails?.predictedClass
+    ? `${prediction.mriDetails.predictedClass} (${prediction.riskLevel} Risk)`
+    : isGait
+    ? (prediction.videoGaitDetails?.predictionAvailable
+        ? `${prediction.riskLevel} Risk Classification`
+        : "Biomechanical Gait Screening (Unclassified)")
+    : `${prediction.riskLevel} Risk Classification`;
+  doc.fontSize(16).fillColor(accentColor).font("Helvetica-Bold").text(outcomeLabel, 68, currentY + 28);
+  doc.fontSize(9).fillColor(mutedTextColor).font("Helvetica").text(
+    isMRI
+      ? "Deep learning MobileNetV2 MRI scan evaluation"
+      : isGait
+      ? "Computer-vision MediaPipe Pose gait kinematics evaluation"
+      : "Automated voice sample evaluation", 
+    68, currentY + 50
+  );
 
-  const confidenceScore = typeof prediction.confidence === "number" ? prediction.confidence.toFixed(1) : "N/A";
-  doc.fillColor(darkTextColor).fontSize(10).font("Helvetica-Bold").text(`Model Confidence: ${confidenceScore}%`, 320, currentY + 14);
-  doc.fontSize(8).fillColor(mutedTextColor).font("Helvetica").text("Matches synthetic benchmark patterns", 320, currentY + 30, { width: 210 });
+  const hasGaitPrediction = isGait && Boolean(prediction.videoGaitDetails?.predictionAvailable);
+  const confidenceScore = isGait
+    ? (hasGaitPrediction && typeof prediction.confidence === "number" ? `${prediction.confidence.toFixed(1)}%` : "N/A (Biomechanical)")
+    : (typeof prediction.confidence === "number" ? `${prediction.confidence.toFixed(1)}%` : "N/A");
+
+  doc.fillColor(darkTextColor).fontSize(10).font("Helvetica-Bold").text(`Model Confidence: ${confidenceScore}`, 320, currentY + 14);
+  doc.fontSize(8).fillColor(mutedTextColor).font("Helvetica").text(
+    isMRI
+      ? "Statistical output from convolutional network"
+      : isGait
+      ? (hasGaitPrediction ? "Statistical output from trained gait classifier" : "Kinematic gait measurement only (no disease classifier)")
+      : "Matches synthetic benchmark patterns", 
+    320, currentY + 30, { width: 210 }
+  );
   currentY += 88;
 
   // Non-diagnostic explanation box
   doc.rect(50, currentY, 495, 46).fill(infoBg);
   doc.rect(50, currentY, 495, 46).strokeColor(infoBorder).stroke();
   
-  doc.fillColor(primaryColor).fontSize(8.5).font("Helvetica-Bold").text("Important Note on Confidence Score:", 60, currentY + 8);
+  doc.fillColor(primaryColor).fontSize(8.5).font("Helvetica-Bold").text(
+    isGait ? "Important Note on Gait Kinematics & Risk:" : "Important Note on Confidence Score:",
+    60, currentY + 8
+  );
   doc.fillColor(darkTextColor).fontSize(8).font("Helvetica").text(
-    "A computer program evaluated acoustic micro-patterns in your voice recording. The confidence score reflects statistical pattern similarity to research dataset samples. It is NOT a person's clinical probability of having Parkinson's disease and is NOT a medical diagnosis.",
+    isMRI
+      ? "A deep learning neural network evaluated structural pixel patterns in your uploaded brain MRI scan. The confidence score reflects mathematical classification probability from research dataset training. It is NOT a clinical diagnosis or medical verification."
+      : isGait
+      ? "Computer vision (OpenCV and MediaPipe Pose) tracked 33 anatomical landmarks across video frames to extract physical walking kinematics (cadence, symmetry, and joint ROM). In the absence of a clinically validated model, disease risk is designated as Indeterminate. Gait asymmetry or elevated variability can result from orthopedic, age-related, or biomechanical factors."
+      : "A computer program evaluated acoustic micro-patterns in your voice recording. The confidence score reflects statistical pattern similarity to research dataset samples. It is NOT a person's clinical probability of having Parkinson's disease and is NOT a medical diagnosis.",
     60, currentY + 20, { width: 475, align: "justify" }
   );
   currentY += 58;
+
+  // If this is an MRI scan, render MRI scan profile and finish
+  if (isMRI) {
+    checkPageOverflow(240);
+    doc.fillColor(darkTextColor).fontSize(12).font("Helvetica-Bold").text("2. Neuroimaging Structural Profile & Technical Details", 50, currentY);
+    doc.moveTo(50, currentY + 15).lineTo(545, currentY + 15).strokeColor(borderGrey).stroke();
+    currentY += 25;
+
+    // Technical Table
+    const mriFields = [
+      ["Scan File Name", prediction.mriDetails?.imageFilename || "mri_scan.png"],
+      ["Input Image Tensor", prediction.mriDetails?.imageDimensions ? `${prediction.mriDetails.imageDimensions} (Resized to 224x224 RGB)` : "224x224 RGB"],
+      ["Model Architecture", "MobileNetV2 (ImageNet Pretrained Transfer Learning)"],
+      ["Model Version", prediction.modelVersion || "mri-mobilenetv2-v1.0.0"],
+      ["Normal Pattern Probability", `${((prediction.mriDetails?.normalProbability ?? (prediction.label === 0 ? prediction.confidence / 100 : (100 - prediction.confidence) / 100)) * 100).toFixed(1)}%`],
+      ["PD Pattern Probability", `${((prediction.mriDetails?.pdProbability ?? (prediction.label === 1 ? prediction.confidence / 100 : (100 - prediction.confidence) / 100)) * 100).toFixed(1)}%`],
+      ["Class Assigned", prediction.mriDetails?.predictedClass === "PD" ? "Parkinson's Disease (PD)" : "Normal Healthy Baseline"]
+    ];
+
+    mriFields.forEach(([label, val], idx) => {
+      const rowY = currentY;
+      doc.rect(50, rowY, 495, 20).fill(idx % 2 === 0 ? lightGrey : "#ffffff");
+      doc.fillColor(darkTextColor).fontSize(8.5).font("Helvetica-Bold").text(label, 60, rowY + 5);
+      doc.fillColor(primaryColor).fontSize(8.5).font("Helvetica").text(val, 260, rowY + 5);
+      currentY += 20;
+    });
+
+    currentY += 20;
+
+    // Clinical recommendations for MRI
+    checkPageOverflow(140);
+    doc.fillColor(darkTextColor).fontSize(12).font("Helvetica-Bold").text("3. Recommended Clinical Follow-up", 50, currentY);
+    doc.moveTo(50, currentY + 15).lineTo(545, currentY + 15).strokeColor(borderGrey).stroke();
+    currentY += 25;
+
+    const recs = prediction.riskLevel === "High"
+      ? [
+          "• Consultation: Schedule an in-person appointment with a certified neurologist or movement disorder specialist.",
+          "• Clinical Radiologist Review: Formal clinical DICOM examination with contrast/T1/T2/DWI series is required.",
+          "• Share this report with your healthcare team as supplementary educational research reference data."
+        ]
+      : [
+          "• Baseline Alignment: Neuroimaging scan patterns match healthy baseline cohorts in training data.",
+          "• Routine Care: Continue standard periodic wellness visits and notify your primary doctor of any new motor symptoms.",
+          "• Re-assessment: If neurological symptoms emerge, consult a clinical specialist for comprehensive assessment."
+        ];
+
+    recs.forEach((rec) => {
+      doc.fillColor(darkTextColor).fontSize(8.5).font("Helvetica").text(rec, 50, currentY, { width: 495, lineGap: 3 });
+      currentY += 20;
+    });
+
+    currentY += 15;
+
+    // Disclaimer Box
+    doc.rect(50, currentY, 495, 60).fill("#fffaf0");
+    doc.rect(50, currentY, 495, 60).strokeColor("#feebc8").stroke();
+    doc.fillColor("#c05621").fontSize(8.5).font("Helvetica-Bold").text("MANDATORY CLINICAL DISCLAIMER & NOTICE", 62, currentY + 8);
+    doc.fillColor(darkTextColor).fontSize(8).font("Helvetica").text(
+      "This report summarizes experimental machine learning output from a convolutional neural network applied to an MRI scan. It has NOT been approved as a medical device or certified diagnostic test. It cannot diagnose, monitor, or rule out Parkinson's disease. Medical evaluation requires professional clinical judgment.",
+      62, currentY + 22, { width: 470, align: "justify" }
+    );
+
+    doc.end();
+    return;
+  }
+
+  // --- SECTION FOR VIDEO GAIT KINEMATICS ---
+  if (isGait) {
+    checkPageOverflow(260);
+    doc.fillColor(darkTextColor).fontSize(12).font("Helvetica-Bold").text("2. Measured Biomechanical Gait Kinematics", 50, currentY);
+    doc.moveTo(50, currentY + 15).lineTo(545, currentY + 15).strokeColor(borderGrey).stroke();
+    currentY += 25;
+
+    doc.fontSize(8.5).font("Helvetica").fillColor(mutedTextColor).text(
+      "Extracted from walking video using OpenCV frame analysis and MediaPipe Pose 33-anatomical-landmark tracking.",
+      50, currentY, { width: 495 }
+    );
+    currentY += 18;
+
+    const gait = prediction.videoGaitDetails || {};
+
+    const gaitFields = [
+      ["Step Cadence", formatNum(gait.cadenceStepsPerMin, 1, "steps/min"), "100 - 125 steps/min", "Steps per minute; lower in hypokinetic gait"],
+      ["Mean Step Duration", formatNum(gait.meanStepTimeSec, 3, "s"), "0.48 - 0.60 s", "Average elapsed time per single forward step"],
+      ["Step Duration Std Dev", formatNum(gait.stepTimeStdSec, 3, "s"), "< 0.05 s", "Temporal consistency across consecutive steps"],
+      ["Bilateral Symmetry Index", formatNum(gait.overallSymmetryIndex, 1, "%"), "> 90.0%", "100% = identical left-right movement excursions"],
+      ["Stride Timing Variability (CV)", formatNum(gait.strideVariabilityCvPercent, 1, "%"), "< 4.0%", "Rhythmic variability across walking cycles"],
+      ["Left Knee Range of Motion", formatNum(gait.leftKneeRomDeg, 1, "°"), "50° - 65°", "Sagittal plane flexion/extension amplitude"],
+      ["Right Knee Range of Motion", formatNum(gait.rightKneeRomDeg, 1, "°"), "50° - 65°", "Sagittal plane flexion/extension amplitude"],
+      ["Left Hip Range of Motion", formatNum(gait.leftHipRomDeg, 1, "°"), "35° - 45°", "Sagittal pelvic-femoral angular excursion"],
+      ["Right Hip Range of Motion", formatNum(gait.rightHipRomDeg, 1, "°"), "35° - 45°", "Sagittal pelvic-femoral angular excursion"],
+      ["Detected Step Breakdown", `L: ${gait.leftStepCount ?? "N/A"} | R: ${gait.rightStepCount ?? "N/A"} (Total: ${gait.totalStepsDetected ?? "N/A"})`, "Balanced count", "Total cycle count for statistical reliability"]
+    ];
+
+    // Table Header
+    const colX = [50, 190, 310, 410];
+    const colW = [140, 120, 100, 135];
+    doc.rect(50, currentY, 495, 20).fill(primaryColor);
+    doc.fillColor("#ffffff").fontSize(8).font("Helvetica-Bold");
+    doc.text("Biomechanical Metric", colX[0] + 6, currentY + 5);
+    doc.text("Measured Value", colX[1] + 6, currentY + 5);
+    doc.text("Reference Range", colX[2] + 6, currentY + 5);
+    doc.text("Clinical Significance", colX[3] + 6, currentY + 5);
+    currentY += 20;
+
+    gaitFields.forEach(([label, val, ref, note], idx) => {
+      checkPageOverflow(22);
+      const rowY = currentY;
+      doc.rect(50, rowY, 495, 20).fill(idx % 2 === 0 ? lightGrey : "#ffffff");
+      doc.fillColor(darkTextColor).fontSize(8).font("Helvetica-Bold").text(label, colX[0] + 6, rowY + 5);
+      doc.fillColor(primaryColor).fontSize(8).font("Helvetica").text(val, colX[1] + 6, rowY + 5);
+      doc.fillColor(mutedTextColor).fontSize(7.5).font("Helvetica").text(ref, colX[2] + 6, rowY + 5);
+      doc.fillColor(darkTextColor).fontSize(7).font("Helvetica").text(note, colX[3] + 6, rowY + 5, { width: colW[3] - 10 });
+      currentY += 20;
+    });
+
+    currentY += 15;
+
+    // SECTION 3: VIDEO QUALITY & POSE TRACKING TELEMETRY
+    checkPageOverflow(140);
+    doc.fillColor(darkTextColor).fontSize(12).font("Helvetica-Bold").text("3. Video Quality & Landmark Tracking Telemetry", 50, currentY);
+    doc.moveTo(50, currentY + 15).lineTo(545, currentY + 15).strokeColor(borderGrey).stroke();
+    currentY += 25;
+
+    const usableFramesText = (gait.usableFrames != null && gait.totalFrames != null)
+      ? `${gait.usableFrames} / ${gait.totalFrames} frames (${formatNum((gait.usableFrameRatio || 0) * 100, 1, "%")})`
+      : "N/A";
+    const trackingConfText = gait.meanPoseTrackingConfidence != null
+      ? formatNum(gait.meanPoseTrackingConfidence * 100, 1, "%")
+      : "N/A";
+    const durationText = gait.durationSec != null
+      ? `${formatNum(gait.durationSec, 1, "s")} (${formatNum(gait.fps, 1, "fps")})`
+      : "N/A";
+
+    const qualityFields = [
+      ["Usable Pose Frame Proportion", usableFramesText],
+      ["Mean Pose Tracking Confidence", trackingConfText],
+      ["Video Duration & Sampling Rate", durationText],
+      ["Original Video Resolution", gait.dimensions || "N/A"],
+      ["Pose Estimation Engine", "MediaPipe Pose 33-Landmark Solution (v0.10.14)"],
+      ["Signal Processing Framework", "OpenCV VideoCapture + SciPy Peak Detection"]
+    ];
+
+    qualityFields.forEach(([label, val], idx) => {
+      checkPageOverflow(20);
+      const rowY = currentY;
+      doc.rect(50, rowY, 495, 18).fill(idx % 2 === 0 ? lightGrey : "#ffffff");
+      doc.fillColor(darkTextColor).fontSize(8).font("Helvetica-Bold").text(label, 60, rowY + 4);
+      doc.fillColor(primaryColor).fontSize(8).font("Helvetica").text(val, 260, rowY + 4);
+      currentY += 18;
+    });
+
+    currentY += 18;
+
+    // SECTION 4: MACHINE LEARNING & RESEARCH STATUS
+    checkPageOverflow(120);
+    doc.fillColor(darkTextColor).fontSize(12).font("Helvetica-Bold").text("4. Machine Learning & Research Model Status", 50, currentY);
+    doc.moveTo(50, currentY + 15).lineTo(545, currentY + 15).strokeColor(borderGrey).stroke();
+    currentY += 25;
+
+    const hasModel = Boolean(gait.predictionAvailable);
+    doc.rect(50, currentY, 495, 45).fill(hasModel ? infoBg : "#fefce8");
+    doc.rect(50, currentY, 495, 45).strokeColor(hasModel ? infoBorder : "#fef08a").stroke();
+    
+    doc.fillColor(hasModel ? primaryColor : "#854d0e").fontSize(8.5).font("Helvetica-Bold")
+       .text(hasModel ? "Validated Classifier Output:" : "Biomechanical Research Screening Only (No Fabricated Classifier):", 60, currentY + 8);
+    
+    doc.fillColor(darkTextColor).fontSize(8).font("Helvetica").text(
+      hasModel
+        ? `Model Version: ${prediction.modelVersion || "video-gait-v1.0.0"} | Score: ${gait.predictionScore ?? "N/A"} | Risk Assigned: ${prediction.riskLevel}`
+        : "In accordance with strict clinical AI safety rules, disease risk scores are not fabricated without models trained and validated on clinical cohorts (such as CARE-PD). The kinematic metrics above represent genuine, reproducible computer-vision measurements.",
+      60, currentY + 22, { width: 475, align: "justify" }
+    );
+    currentY += 55;
+
+    // SECTION 5: CLINICAL GUIDANCE & INTERPRETATION
+    checkPageOverflow(130);
+    doc.fillColor(darkTextColor).fontSize(12).font("Helvetica-Bold").text("5. Clinical Interpretation & Movement Observations", 50, currentY);
+    doc.moveTo(50, currentY + 15).lineTo(545, currentY + 15).strokeColor(borderGrey).stroke();
+    currentY += 25;
+
+    const gaitRecs = [
+      "• Bilateral Symmetry: Asymmetry in step excursions or arm swing is a recognized early motor marker of Parkinsonian gait (Hoehn & Yahr Stage 1). However, orthopedic conditions (e.g. knee/hip osteoarthritis) also frequently induce movement asymmetry.",
+      "• Stride Regularity: Stride timing variability (CV) exceeding 4-5% can signal rhythmic stepping instability or ataxia.",
+      "• Uncalibrated Video Limitations: Single 2D monocular cameras cannot measure absolute speed (m/s) without spatial calibration. All metrics describe angular and temporal dynamics.",
+      "• Next Steps: If you or a family member notice tremors, gait freezing, stiffness, or balance changes, consult a board-certified neurologist or movement disorder specialist."
+    ];
+
+    gaitRecs.forEach((rec) => {
+      checkPageOverflow(26);
+      doc.fillColor(darkTextColor).fontSize(8).font("Helvetica").text(rec, 50, currentY, { width: 495, lineGap: 2 });
+      currentY += 24;
+    });
+
+    currentY += 15;
+
+    // SECTION 6: MANDATORY DISCLAIMER
+    checkPageOverflow(65);
+    doc.rect(50, currentY, 495, 55).fill("#fffaf0");
+    doc.rect(50, currentY, 495, 55).strokeColor("#feebc8").stroke();
+    doc.fillColor("#c05621").fontSize(8.5).font("Helvetica-Bold").text("MANDATORY CLINICAL DISCLAIMER & NOTICE", 62, currentY + 8);
+    doc.fillColor(darkTextColor).fontSize(8).font("Helvetica").text(
+      "This report summarizes computer-vision biomechanical gait tracking. It has NOT been cleared as a medical diagnostic device by the FDA or regulatory health authorities. It cannot diagnose, rule out, or monitor Parkinson's disease. Any medical decisions must be made in consultation with a qualified neurologist or physician.",
+      62, currentY + 22, { width: 470, align: "justify" }
+    );
+
+    doc.end();
+    return;
+  }
 
   // --- SECTION C: VISUAL VOICE SUMMARY & GRAPHICAL ANALYSIS ---
   checkPageOverflow(210);
@@ -496,7 +759,7 @@ function generateReportPDF(prediction, res) {
     doc.fontSize(8)
        .fillColor("#94a3b8")
        .text(
-         `Page ${i + 1} of ${totalPages}   |   Your Voice Assessment Report   |   Ref: ${prediction._id}`,
+         `Page ${i + 1} of ${totalPages}   |   ${headerTitle}   |   Ref: ${prediction._id}`,
          50,
          780,
          { align: "center", width: 495 }

@@ -11,6 +11,7 @@ export default function History() {
   const [filteredPredictions, setFilteredPredictions] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRisk, setFilterRisk] = useState("All");
+  const [filterType, setFilterType] = useState("All");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,6 +54,10 @@ export default function History() {
       );
     }
 
+    if (filterType !== "All") {
+      results = results.filter((p) => (p.predictionType || "voice") === filterType.toLowerCase());
+    }
+
     if (filterRisk !== "All") {
       results = results.filter((p) => p.riskLevel === filterRisk);
     }
@@ -74,11 +79,12 @@ export default function History() {
 
     setFilteredPredictions(results);
     setPage(1); // Reset to page 1 on search/filter
-  }, [searchTerm, filterRisk, startDate, endDate, allPredictions]);
+  }, [searchTerm, filterRisk, filterType, startDate, endDate, allPredictions]);
 
   const resetFilters = () => {
     setSearchTerm("");
     setFilterRisk("All");
+    setFilterType("All");
     setStartDate("");
     setEndDate("");
   };
@@ -87,6 +93,7 @@ export default function History() {
     if (risk === "Low") return "badge-low";
     if (risk === "Medium") return "badge-medium";
     if (risk === "High") return "badge-high";
+    if (risk === "Indeterminate") return "badge-medium";
     return "";
   };
 
@@ -129,12 +136,20 @@ export default function History() {
     >
       <header className="mb-6" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
         <div>
-          <h1 className="page-title">Voice Assessment History</h1>
-          <p className="page-subtitle">Historical records of all vocal biomarker evaluations and machine learning predictions.</p>
+          <h1 className="page-title">Assessment History Logs</h1>
+          <p className="page-subtitle">Historical records of vocal biomarker and neuroimaging MRI evaluations.</p>
         </div>
-        <Link to="/compare" className="btn-secondary font-semibold" style={{ display: "inline-flex", alignItems: "center", gap: "8px", borderRadius: "10px", padding: "10px 18px" }}>
-          <FaExchangeAlt style={{ color: "var(--primary-color)" }} /> Compare Assessments
-        </Link>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <Link to="/mri-analysis" className="btn-primary font-semibold" style={{ display: "inline-flex", alignItems: "center", gap: "8px", borderRadius: "10px", padding: "10px 18px" }}>
+            🧠 New MRI Analysis
+          </Link>
+          <Link to="/video-gait-analysis" className="btn-secondary font-semibold" style={{ display: "inline-flex", alignItems: "center", gap: "8px", borderRadius: "10px", padding: "10px 18px" }}>
+            🚶 New Gait Analysis
+          </Link>
+          <Link to="/compare" className="btn-secondary font-semibold" style={{ display: "inline-flex", alignItems: "center", gap: "8px", borderRadius: "10px", padding: "10px 18px" }}>
+            <FaExchangeAlt style={{ color: "var(--primary-color)" }} /> Compare Assessments
+          </Link>
+        </div>
       </header>
 
       {error && (
@@ -145,7 +160,7 @@ export default function History() {
 
       {/* Search and Filters Bar */}
       <div className="glass-card mb-6" style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div className="form-group" style={{ flex: 1, minWidth: "220px" }}>
+        <div className="form-group" style={{ flex: 1, minWidth: "200px" }}>
           <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}><FaSearch /> Search ID / Date</label>
           <input
             type="text"
@@ -154,7 +169,16 @@ export default function History() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="form-group" style={{ width: "160px" }}>
+        <div className="form-group" style={{ width: "150px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}>Modality</label>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+            <option value="All">All Types</option>
+            <option value="voice">🎙️ Voice</option>
+            <option value="mri">🧠 MRI Scan</option>
+            <option value="video_gait">🚶 Video Gait</option>
+          </select>
+        </div>
+        <div className="form-group" style={{ width: "150px" }}>
           <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}><FaFilter /> Risk Level</label>
           <select value={filterRisk} onChange={(e) => setFilterRisk(e.target.value)}>
             <option value="All">All Risks</option>
@@ -163,7 +187,7 @@ export default function History() {
             <option value="High">High Risk</option>
           </select>
         </div>
-        <div className="form-group" style={{ width: "150px" }}>
+        <div className="form-group" style={{ width: "140px" }}>
           <label style={{ fontSize: "13px" }}>Start Date</label>
           <input
             type="date"
@@ -171,7 +195,7 @@ export default function History() {
             onChange={(e) => setStartDate(e.target.value)}
           />
         </div>
-        <div className="form-group" style={{ width: "150px" }}>
+        <div className="form-group" style={{ width: "140px" }}>
           <label style={{ fontSize: "13px" }}>End Date</label>
           <input
             type="date"
@@ -179,7 +203,7 @@ export default function History() {
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
-        {(searchTerm || filterRisk !== "All" || startDate || endDate) && (
+        {(searchTerm || filterRisk !== "All" || filterType !== "All" || startDate || endDate) && (
           <button onClick={resetFilters} className="btn-secondary btn-small" style={{ height: "42px", marginBottom: "2px" }}>
             Reset Filters
           </button>
@@ -191,8 +215,11 @@ export default function History() {
           <div className="empty-state">
             <span className="empty-state-icon">📋</span>
             <h3 className="empty-state-title">No Records Match</h3>
-            <p className="empty-state-text">Try adjusting your filters or record a new screening sample.</p>
-            <Link to="/predict" className="btn-primary mt-4">Record Speech Sample</Link>
+            <p className="empty-state-text">Try adjusting your filters or run a new screening assessment.</p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center", marginTop: "16px" }}>
+              <Link to="/predict" className="btn-primary">Record Speech</Link>
+              <Link to="/mri-analysis" className="btn-secondary">Upload MRI</Link>
+            </div>
           </div>
         ) : (
           <>
@@ -202,6 +229,7 @@ export default function History() {
                   <tr>
                     <th>Date & Time</th>
                     <th>Assessment ID</th>
+                    <th>Modality</th>
                     <th>Risk Level</th>
                     <th>Confidence Probability</th>
                     <th>Actions</th>
@@ -213,11 +241,34 @@ export default function History() {
                       <td>{new Date(pred.createdAt).toLocaleString()}</td>
                       <td className="font-mono text-small">{pred._id}</td>
                       <td>
-                        <span className={`badge ${getRiskClass(pred.riskLevel)}`}>
-                          {pred.riskLevel} Risk
+                        <span style={{ 
+                          fontSize: "12px", 
+                          fontWeight: "600",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          background: pred.predictionType === "mri" ? "rgba(13, 148, 136, 0.12)" : (pred.predictionType === "video_gait" || pred.predictionType === "video" ? "rgba(79, 70, 229, 0.12)" : "rgba(2, 132, 199, 0.12)"),
+                          color: pred.predictionType === "mri" ? "var(--secondary-color)" : (pred.predictionType === "video_gait" || pred.predictionType === "video" ? "var(--accent-color)" : "var(--primary-color)")
+                        }}>
+                          {pred.predictionType === "mri" ? "🧠 MRI" : (pred.predictionType === "video_gait" || pred.predictionType === "video" ? "🚶 Gait" : "🎙️ Voice")}
                         </span>
                       </td>
-                      <td className="font-bold" style={{ color: "var(--text-main)" }}>{pred.confidence.toFixed(2)}%</td>
+                      <td>
+                        <span className={`badge ${getRiskClass(pred.riskLevel)}`}>
+                          {pred.predictionType === "mri" && pred.mriDetails?.predictedClass 
+                            ? `${pred.mriDetails.predictedClass} (${pred.riskLevel})`
+                            : (pred.predictionType === "video_gait" || pred.predictionType === "video")
+                            ? (pred.videoGaitDetails?.predictionAvailable
+                              ? `${pred.riskLevel} Risk`
+                              : "Biomechanical Screening")
+                            : `${pred.riskLevel} Risk`}
+                        </span>
+                      </td>
+                      <td className="font-bold" style={{ color: "var(--text-main)" }}>
+                        {typeof pred.confidence === "number" ? `${pred.confidence.toFixed(2)}%` : "N/A (Screening)"}
+                      </td>
                       <td>
                         <div className="actions-cell">
                           <Link to={`/result/${pred._id}`} className="btn-secondary btn-small">

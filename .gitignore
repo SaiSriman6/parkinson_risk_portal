@@ -32,6 +32,23 @@ uploads/
 *.wav
 *.mp3
 *.m4a
+*.mp4
+*.mov
+*.avi
+*.webm
+*.mkv
+
+# ML Datasets and Models
+data/
+**/data/
+dataset/
+**/dataset/
+*.pt
+*.pth
+*.h5
+*.keras
+*gait*.pkl
+*gait*.pt
 
 # Local development
 .DS_Store

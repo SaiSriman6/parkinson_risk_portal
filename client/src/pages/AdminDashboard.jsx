@@ -232,7 +232,8 @@ export default function AdminDashboard() {
     let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "Assessment ID,Patient Name,Patient Email,Risk Classification,Confidence,Timestamp,Doctor Notes,Recommendations\n";
     allPredictions.forEach(p => {
-      csvContent += `${p._id},"${p.user?.name || 'Deleted'}","${p.user?.email || 'N/A'}",${p.riskLevel},${p.confidence.toFixed(2)}%,${p.createdAt},"${p.doctorNotes || ''}","${p.recommendations || ''}"\n`;
+      const confDisplay = typeof p.confidence === "number" ? `${p.confidence.toFixed(2)}%` : "N/A";
+      csvContent += `${p._id},"${p.user?.name || 'Deleted'}","${p.user?.email || 'N/A'}",${p.riskLevel},${confDisplay},${p.createdAt},"${p.doctorNotes || ''}","${p.recommendations || ''}"\n`;
     });
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -465,7 +466,7 @@ export default function AdminDashboard() {
                           <td className="font-bold">{p.user?.name || "Deleted Patient"}</td>
                           <td>{p.user?.email || "N/A"}</td>
                           <td><span className={`badge ${getRiskClass(p.riskLevel)}`}>{p.riskLevel} Risk</span></td>
-                          <td className="font-mono">{p.confidence.toFixed(2)}%</td>
+                          <td className="font-mono">{typeof p.confidence === "number" ? `${p.confidence.toFixed(2)}%` : "N/A"}</td>
                           <td>
                             {p.doctorNotes || p.recommendations ? (
                               <span className="badge badge-low" style={{ textTransform: "capitalize" }}>Reviewed</span>
@@ -645,7 +646,7 @@ export default function AdminDashboard() {
                               <tr key={p._id}>
                                 <td>{new Date(p.createdAt).toLocaleString()}</td>
                                 <td><span className={`badge ${getRiskClass(p.riskLevel)}`}>{p.riskLevel} Risk</span></td>
-                                <td>{p.confidence.toFixed(2)}%</td>
+                                <td>{typeof p.confidence === "number" ? `${p.confidence.toFixed(2)}%` : "N/A"}</td>
                                 <td style={{ fontSize: "12px" }}>
                                   fo: {p.features?.fo?.toFixed(2) || "N/A"} Hz | Jitter: {p.features?.jitter_local?.toFixed(4) || "N/A"}
                                 </td>
@@ -726,7 +727,7 @@ export default function AdminDashboard() {
                             {pred.riskLevel} Risk
                           </span>
                         </td>
-                        <td className="font-bold">{pred.confidence.toFixed(2)}%</td>
+                        <td className="font-bold">{typeof pred.confidence === "number" ? `${pred.confidence.toFixed(2)}%` : "N/A"}</td>
                         <td>
                           {pred.doctorNotes || pred.recommendations ? (
                             <span className="badge badge-low" style={{ textTransform: "capitalize" }}>Reviewed</span>
@@ -781,7 +782,7 @@ export default function AdminDashboard() {
                         
                         <h4 style={{ color: "var(--primary-color)", margin: "20px 0 10px" }}>Diagnostics</h4>
                         <p style={{ fontSize: "14px" }}>Model prediction: <strong>Label {reviewingPrediction.label} ({reviewingPrediction.riskLevel} Risk)</strong></p>
-                        <p style={{ fontSize: "14px" }}>Confidence: <strong>{reviewingPrediction.confidence.toFixed(2)}%</strong></p>
+                        <p style={{ fontSize: "14px" }}>Confidence: <strong>{typeof reviewingPrediction.confidence === "number" ? `${reviewingPrediction.confidence.toFixed(2)}%` : "N/A (Screening)"}</strong></p>
                       </div>
 
                       <div style={{ borderLeft: "1px solid var(--border-color)", paddingLeft: "20px" }}>
@@ -913,7 +914,7 @@ export default function AdminDashboard() {
                         <td className="font-bold">{p.user?.name || "Deleted"}</td>
                         <td>{p.user?.email || "N/A"}</td>
                         <td><span className={`badge ${getRiskClass(p.riskLevel)}`}>{p.riskLevel} Risk</span></td>
-                        <td className="font-bold" style={{ color: getRiskColor(p.riskLevel) }}>{p.confidence.toFixed(2)}%</td>
+                        <td className="font-bold" style={{ color: getRiskColor(p.riskLevel) }}>{typeof p.confidence === "number" ? `${p.confidence.toFixed(2)}%` : "N/A"}</td>
                         <td>
                           <button className="btn-secondary btn-small" onClick={() => setReviewingPrediction(p)}><FaEye /> Review Report</button>
                         </td>
@@ -1125,7 +1126,7 @@ export default function AdminDashboard() {
                 <div className="stats-card">
                   <span className="stats-title">Avg Prediction Confidence</span>
                   <div className="stats-value">
-                    {(allPredictions.reduce((acc, curr) => acc + curr.confidence, 0) / (totalPredictions || 1)).toFixed(2)}%
+                    {(() => { const valid = allPredictions.filter(p => typeof p.confidence === "number"); return valid.length > 0 ? (valid.reduce((acc, curr) => acc + curr.confidence, 0) / valid.length).toFixed(2) : "0.00"; })()}%
                   </div>
                   <div className="stats-footer">Across all voice recordings</div>
                 </div>
@@ -1180,7 +1181,7 @@ export default function AdminDashboard() {
                             <tr key={item.user._id}>
                               <td className="font-bold">{item.user.name}</td>
                               <td className="font-bold text-red" style={{ textAlign: "center" }}>{item.consecutiveHighCount} times</td>
-                              <td className="font-mono">{item.lastPrediction?.confidence?.toFixed(2)}%</td>
+                              <td className="font-mono">{typeof item.lastPrediction?.confidence === "number" ? `${item.lastPrediction.confidence.toFixed(2)}%` : "N/A"}</td>
                             </tr>
                           ))}
                         </tbody>

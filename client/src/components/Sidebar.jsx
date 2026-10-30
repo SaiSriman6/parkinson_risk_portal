@@ -4,7 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import { 
   FaHeartbeat, FaMicrophone, FaHistory, FaUser, 
   FaUsers, FaFileMedicalAlt, FaExclamationTriangle, 
-  FaStickyNote, FaMedkit, FaChartPie, FaBrain, FaEnvelope, FaCog, FaSignOutAlt, FaExchangeAlt 
+  FaStickyNote, FaMedkit, FaChartPie, FaBrain, FaEnvelope, FaCog, FaSignOutAlt, FaExchangeAlt, FaWalking 
 } from "react-icons/fa";
 
 
@@ -132,7 +132,23 @@ export default function Sidebar() {
               className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
             >
               <FaMicrophone />
-              <span>New Assessment</span>
+              <span>Voice Assessment</span>
+            </NavLink>
+
+            <NavLink 
+              to="/mri-analysis" 
+              className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+            >
+              <FaBrain />
+              <span>MRI Image Analysis</span>
+            </NavLink>
+
+            <NavLink 
+              to="/video-gait-analysis" 
+              className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+            >
+              <FaWalking />
+              <span>Video Gait Analysis</span>
             </NavLink>
 
             <NavLink 

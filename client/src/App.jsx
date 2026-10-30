@@ -13,6 +13,8 @@ import History from "./pages/History";
 import Result from "./pages/Result";
 import AdminDashboard from "./pages/AdminDashboard";
 import AssessmentComparison from "./pages/AssessmentComparison";
+import MRIAnalysis from "./pages/MRIAnalysis";
+import VideoGaitAnalysis from "./pages/VideoGaitAnalysis";
 
 
 // Protected route wrapper
@@ -89,6 +91,38 @@ function MainLayout() {
               element={
                 <ProtectedRoute>
                   <Prediction />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mri-analysis"
+              element={
+                <ProtectedRoute>
+                  <MRIAnalysis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mri"
+              element={
+                <ProtectedRoute>
+                  <MRIAnalysis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/video-gait-analysis"
+              element={
+                <ProtectedRoute>
+                  <VideoGaitAnalysis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/gait"
+              element={
+                <ProtectedRoute>
+                  <VideoGaitAnalysis />
                 </ProtectedRoute>
               }
             />

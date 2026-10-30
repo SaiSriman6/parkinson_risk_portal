@@ -89,6 +89,232 @@ const createPrediction = async (req, res) => {
   }
 };
 
+// @desc    Upload MRI image file and get ML prediction
+// @route   POST /api/predictions/upload-mri
+// @access  Private
+const createMRIPrediction = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No MRI image file uploaded. Please select a valid PNG, JPG, or WEBP image." });
+    }
+
+    const rawPythonUrl = process.env.PYTHON_SERVICE_URL || "http://127.0.0.1:8000";
+    const pythonServiceUrl = rawPythonUrl.replace(/\/+$/, "");
+
+    // Prepare multipart form-data for Python ML service using memory buffer
+    const blob = new Blob([req.file.buffer], { type: req.file.mimetype || "image/png" });
+    const formData = new FormData();
+    formData.append("file", blob, req.file.originalname || "mri_scan.png");
+
+    // Call Python ML microservice
+    let mlResponse;
+    try {
+      mlResponse = await axios.post(`${pythonServiceUrl}/predict_mri`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        },
+        timeout: 60000
+      });
+    } catch (mlErr) {
+      console.error("ML service MRI communication failed:", mlErr.message);
+      const statusCode = mlErr.response?.status || 502;
+      const detailMsg = mlErr.response?.data?.detail || "Machine learning microservice unavailable or returned an error";
+      return res.status(statusCode).json({
+        message: detailMsg,
+        error: mlErr.message
+      });
+    }
+
+    const {
+      label,
+      predictedClass,
+      riskLevel,
+      confidence,
+      pdProbability,
+      normalProbability,
+      modelVersion,
+      imageMetadata,
+      disclaimer
+    } = mlResponse.data;
+
+    // Save prediction record to Database with predictionType: "mri"
+    const prediction = new Prediction({
+      user: req.user.id,
+      predictionType: "mri",
+      label,
+      confidence,
+      riskLevel,
+      modelVersion: modelVersion || "mri-mobilenetv2-v1.0.0",
+      mriDetails: {
+        predictedClass,
+        pdProbability,
+        normalProbability,
+        imageFilename: req.file.originalname,
+        imageDimensions: imageMetadata?.dimensions || `${imageMetadata?.width}x${imageMetadata?.height}`,
+        fileSizeBytes: req.file.size || req.file.buffer.length,
+        disclaimer
+      }
+    });
+
+    await prediction.save();
+
+    // Trigger notification for assessment completion
+    await createNotification(
+      req.user.id,
+      "MRI Assessment Completed",
+      `Neuroimaging scan evaluated: ${predictedClass} (${confidence.toFixed(1)}% confidence, ${riskLevel} Risk).`,
+      "assessment",
+      `/result/${prediction._id}`
+    );
+
+    res.status(201).json(prediction);
+  } catch (error) {
+    console.error("MRI Prediction creation error:", error);
+    res.status(500).json({ message: "Server error processing MRI image", error: error.message });
+  }
+};
+
+// @desc    Upload walking video file and get video gait analysis
+// @route   POST /api/predictions/upload-video OR POST /api/video-analysis/predict
+// @access  Private
+const createVideoGaitPrediction = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        message: "No video file uploaded. Please upload an MP4, WEBM, MOV, or AVI walking video."
+      });
+    }
+
+    const rawPythonUrl = process.env.PYTHON_SERVICE_URL || "http://127.0.0.1:8000";
+    const pythonServiceUrl = rawPythonUrl.replace(/\/+$/, "");
+
+    // Prepare multipart form-data for Python ML service using memory buffer
+    const blob = new Blob([req.file.buffer], { type: req.file.mimetype || "video/mp4" });
+    const formData = new FormData();
+    formData.append("file", blob, req.file.originalname || "walking_video.mp4");
+
+    // Call Python ML microservice (120s timeout for video processing)
+    let mlResponse;
+    try {
+      mlResponse = await axios.post(`${pythonServiceUrl}/predict_gait`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        },
+        timeout: parseInt(process.env.VIDEO_ANALYSIS_TIMEOUT_MS, 10) || 120000
+      });
+    } catch (mlErr) {
+      console.error("ML service Video Gait communication failed:", mlErr.message);
+      const statusCode = mlErr.response?.status || 502;
+      const detailMsg = mlErr.response?.data?.detail || "Video gait analysis service unavailable or returned an error";
+      return res.status(statusCode).json({
+        message: detailMsg,
+        error: mlErr.message
+      });
+    }
+
+    const {
+      analysisType,
+      videoMetadata,
+      gaitAnalysis,
+      prediction: mlPrediction,
+      limitations,
+      disclaimer
+    } = mlResponse.data;
+
+    const isModelAvailable = Boolean(mlPrediction?.available);
+
+    const riskLevel = isModelAvailable && mlPrediction.riskLevel
+      ? mlPrediction.riskLevel
+      : "Indeterminate";
+
+    const confidenceVal = (isModelAvailable && typeof mlPrediction?.confidence === "number")
+      ? mlPrediction.confidence
+      : null;
+
+    const labelVal = (isModelAvailable && typeof mlPrediction?.label === "number")
+      ? mlPrediction.label
+      : null;
+
+    const modelVersionStr = mlPrediction?.modelVersion || "video-gait-v1.0.0";
+
+    // Save prediction record to Database with predictionType: "video_gait"
+    const prediction = new Prediction({
+      user: req.user.id,
+      predictionType: "video_gait",
+      label: labelVal,
+      confidence: confidenceVal,
+      riskLevel: riskLevel,
+      modelVersion: modelVersionStr,
+      videoGaitDetails: {
+        cadenceStepsPerMin: gaitAnalysis?.cadenceStepsPerMin,
+        meanStepTimeSec: gaitAnalysis?.meanStepTimeSec,
+        stepTimeStdSec: gaitAnalysis?.stepTimeStdSec,
+        strideVariabilityCvPercent: gaitAnalysis?.strideVariabilityCvPercent,
+        overallSymmetryIndex: gaitAnalysis?.overallSymmetryIndex,
+        leftStepCount: gaitAnalysis?.leftStepCount,
+        rightStepCount: gaitAnalysis?.rightStepCount,
+        totalStepsDetected: gaitAnalysis?.totalStepsDetected,
+        leftKneeRomDeg: gaitAnalysis?.leftKneeRomDeg,
+        rightKneeRomDeg: gaitAnalysis?.rightKneeRomDeg,
+        leftHipRomDeg: gaitAnalysis?.leftHipRomDeg,
+        rightHipRomDeg: gaitAnalysis?.rightHipRomDeg,
+        usableFrameRatio: videoMetadata?.usableFrameRatio,
+        totalFrames: videoMetadata?.totalFrames,
+        usableFrames: videoMetadata?.usableFrames,
+        fps: videoMetadata?.fps,
+        durationSec: videoMetadata?.durationSec,
+        effectiveDurationSec: videoMetadata?.effectiveDurationSec,
+        meanPoseTrackingConfidence: videoMetadata?.meanPoseTrackingConfidence,
+        dimensions: videoMetadata?.dimensions,
+        predictionAvailable: Boolean(mlPrediction?.available),
+        predictionLabel: mlPrediction?.label,
+        predictionScore: mlPrediction?.score,
+        predictionStatus: mlPrediction?.status,
+        limitations: limitations || [],
+        disclaimer: disclaimer || ""
+      }
+    });
+
+    await prediction.save();
+
+    // Trigger notification for assessment completion
+    await createNotification(
+      req.user.id,
+      "Video Gait Assessment Completed",
+      `Walking video evaluated: Cadence ${gaitAnalysis?.cadenceStepsPerMin || "N/A"} steps/min, Symmetry ${gaitAnalysis?.overallSymmetryIndex || "N/A"}%.`,
+      "assessment",
+      `/result/${prediction._id}`
+    );
+
+    // Non-blocking email dispatch if user has email notifications configured
+    if (typeof sendAssessmentCompletedEmail === "function") {
+      sendAssessmentCompletedEmail(req.user, prediction._id).catch((err) =>
+        console.error("Assessment email notice:", err)
+      );
+    }
+
+    // Return structured JSON response adhering to Phase 7 contract
+    res.status(201).json({
+      success: true,
+      _id: prediction._id,
+      analysisType: "video_gait",
+      riskLevel: prediction.riskLevel,
+      confidence: prediction.confidence,
+      createdAt: prediction.createdAt,
+      videoMetadata,
+      gaitAnalysis,
+      prediction: mlPrediction,
+      limitations,
+      disclaimer,
+      predictionRecord: prediction
+    });
+  } catch (error) {
+    console.error("Video Gait prediction error:", error);
+    res.status(500).json({ message: "Server error during video gait analysis", error: error.message });
+  }
+  }
+;
+
 // @desc    Get user predictions (paginated, filtered)
 // @route   GET /api/predictions
 // @access  Private
@@ -98,6 +324,10 @@ const getPredictions = async (req, res) => {
   const skip = (page - 1) * limit;
 
   const query = req.user.role === "admin" ? {} : { user: req.user.id };
+
+  if (req.query.type && req.query.type !== "All") {
+    query.predictionType = req.query.type;
+  }
 
   if (req.query.riskLevel && req.query.riskLevel !== "All") {
     query.riskLevel = req.query.riskLevel;
@@ -202,6 +432,20 @@ const getPredictionComparison = async (req, res) => {
       later = pred1;
     }
 
+    const earlierType = earlier.predictionType || "voice";
+    const laterType = later.predictionType || "voice";
+    const comparisonType = earlierType === laterType ? `${earlierType}_vs_${laterType}` : "mixed";
+
+    const timeDiffMs = Math.abs(new Date(later.createdAt) - new Date(earlier.createdAt));
+    const daysBetween = Math.round(timeDiffMs / (1000 * 60 * 60 * 24));
+
+    const riskRank = { Low: 1, Medium: 2, High: 3 };
+    const eScore = riskRank[earlier.riskLevel] || 1;
+    const lScore = riskRank[later.riskLevel] || 1;
+    let riskTrend = "stable";
+    if (lScore < eScore) riskTrend = "improved";
+    else if (lScore > eScore) riskTrend = "elevated";
+
     // Extract features maps into JS objects safely
     const feat1 = typeof earlier.features?.toJSON === "function" ? earlier.features.toJSON() : (earlier.features || {});
     const feat2 = typeof later.features?.toJSON === "function" ? later.features.toJSON() : (later.features || {});
@@ -240,22 +484,63 @@ const getPredictionComparison = async (req, res) => {
       };
     });
 
+    let mriComparison = null;
+    if (earlierType === "mri" || laterType === "mri") {
+      const mri1 = earlier.mriDetails || {};
+      const mri2 = later.mriDetails || {};
+      const probDiff = (mri2.pdProbability != null && mri1.pdProbability != null)
+        ? Number(((mri2.pdProbability - mri1.pdProbability) * 100).toFixed(2))
+        : null;
+
+      mriComparison = {
+        earlier: {
+          predictedClass: mri1.predictedClass || (earlier.label === 1 ? "PD" : "Normal"),
+          pdProbability: mri1.pdProbability != null ? Number((mri1.pdProbability * 100).toFixed(2)) : null,
+          normalProbability: mri1.normalProbability != null ? Number((mri1.normalProbability * 100).toFixed(2)) : null,
+          imageFilename: mri1.imageFilename || mri1.originalFilename || "Scan",
+          imageDimensions: mri1.imageDimensions || "224x224"
+        },
+        later: {
+          predictedClass: mri2.predictedClass || (later.label === 1 ? "PD" : "Normal"),
+          pdProbability: mri2.pdProbability != null ? Number((mri2.pdProbability * 100).toFixed(2)) : null,
+          normalProbability: mri2.normalProbability != null ? Number((mri2.normalProbability * 100).toFixed(2)) : null,
+          imageFilename: mri2.imageFilename || mri2.originalFilename || "Scan",
+          imageDimensions: mri2.imageDimensions || "224x224"
+        },
+        pdProbabilityDiff: probDiff,
+        status: probDiff !== null ? (Math.abs(probDiff) < 0.1 ? "unchanged" : (probDiff > 0 ? "increased" : "decreased")) : "unknown"
+      };
+    }
+
     res.json({
       earlierAssessment: {
         _id: earlier._id,
         createdAt: earlier.createdAt,
         riskLevel: earlier.riskLevel,
         confidence: earlier.confidence,
-        label: earlier.label
+        label: earlier.label,
+        predictionType: earlierType,
+        modelVersion: earlier.modelVersion,
+        mriDetails: earlier.mriDetails || null
       },
       laterAssessment: {
         _id: later._id,
         createdAt: later.createdAt,
         riskLevel: later.riskLevel,
         confidence: later.confidence,
-        label: later.label
+        label: later.label,
+        predictionType: laterType,
+        modelVersion: later.modelVersion,
+        mriDetails: later.mriDetails || null
       },
-      comparisons
+      comparisonType,
+      daysBetween,
+      confidenceDiff: (typeof later.confidence === "number" && typeof earlier.confidence === "number")
+        ? Number((later.confidence - earlier.confidence).toFixed(2))
+        : null,
+      riskTrend,
+      comparisons,
+      mriComparison
     });
   } catch (error) {
     console.error("Comparison error:", error);
@@ -589,6 +874,8 @@ const emailPredictionReport = async (req, res) => {
 
 module.exports = {
   createPrediction,
+  createMRIPrediction,
+  createVideoGaitPrediction,
   getPredictions,
   getPredictionById,
   getPredictionComparison,

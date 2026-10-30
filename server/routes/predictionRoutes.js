@@ -3,6 +3,8 @@ const router = express.Router();
 
 const {
   createPrediction,
+  createMRIPrediction,
+  createVideoGaitPrediction,
   getPredictions,
   getPredictionById,
   getPredictionComparison,
@@ -18,8 +20,12 @@ const {
 } = require("../controllers/predictionController");
 const { protect, admin } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
+const uploadImage = require("../middleware/imageUploadMiddleware");
+const uploadVideo = require("../middleware/videoUploadMiddleware");
 
 router.post("/upload", protect, upload.single("file"), createPrediction);
+router.post("/upload-mri", protect, uploadImage.single("file"), createMRIPrediction);
+router.post("/upload-video", protect, uploadVideo.single("file"), createVideoGaitPrediction);
 router.get("/admin/all-predictions", protect, admin, getAllPredictionsAdmin);
 router.get("/admin/all-users", protect, admin, getAllUsersAdmin);
 router.put("/admin/users/:id", protect, admin, updateUserAdmin);

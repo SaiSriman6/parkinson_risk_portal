@@ -10,7 +10,7 @@ import {
   FaMicrophone, FaCloudUploadAlt, FaHistory, FaUser, 
   FaArrowRight, FaClock, FaHeartbeat, FaNotesMedical, 
   FaExclamationTriangle, FaStar, FaStickyNote, FaMedkit, 
-  FaCalendarAlt, FaAngleDoubleRight, FaFilePdf
+  FaCalendarAlt, FaAngleDoubleRight, FaFilePdf, FaBrain, FaWalking
 } from "react-icons/fa";
 
 export default function Dashboard() {
@@ -85,8 +85,9 @@ export default function Dashboard() {
 
   // Calculations
   const timeline = stats?.timeline || [];
-  const averageConfidence = timeline.length > 0 
-    ? (timeline.reduce((acc, curr) => acc + curr.confidence, 0) / timeline.length).toFixed(1) + "%"
+  const confTimeline = timeline.filter(t => typeof t.confidence === "number");
+  const averageConfidence = confTimeline.length > 0 
+    ? (confTimeline.reduce((acc, curr) => acc + curr.confidence, 0) / confTimeline.length).toFixed(1) + "%"
     : "N/A";
 
   let riskTrendText = "Stable";
@@ -183,7 +184,7 @@ export default function Dashboard() {
             <span className="stats-icon icon-red"><FaExclamationTriangle /></span>
           </div>
           <div className="stats-value">
-            {stats?.latestPrediction ? `${stats.latestPrediction.confidence.toFixed(1)}%` : "N/A"}
+            {typeof stats?.latestPrediction?.confidence === "number" ? `${stats.latestPrediction.confidence.toFixed(1)}%` : "N/A"}
           </div>
           <div className="stats-footer">Vocal tremor probability</div>
         </motion.div>
@@ -204,11 +205,15 @@ export default function Dashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
           <Link to="/predict" className="btn-primary" style={{ padding: "18px 24px", borderRadius: "14px", display: "flex", flexDirection: "column", gap: "8px", height: "100px", justifyContent: "center" }}>
             <FaMicrophone style={{ fontSize: "20px" }} />
-            <span>Record Voice</span>
+            <span>Voice Assessment</span>
           </Link>
-          <Link to="/predict" className="btn-secondary" style={{ padding: "18px 24px", borderRadius: "14px", display: "flex", flexDirection: "column", gap: "8px", height: "100px", justifyContent: "center" }}>
-            <FaCloudUploadAlt style={{ fontSize: "20px", color: "var(--primary-color)" }} />
-            <span>Upload Audio</span>
+          <Link to="/mri-analysis" className="btn-secondary" style={{ padding: "18px 24px", borderRadius: "14px", display: "flex", flexDirection: "column", gap: "8px", height: "100px", justifyContent: "center" }}>
+            <FaBrain style={{ fontSize: "20px", color: "var(--primary-color)" }} />
+            <span>MRI Image Analysis</span>
+          </Link>
+          <Link to="/video-gait-analysis" className="btn-secondary" style={{ padding: "18px 24px", borderRadius: "14px", display: "flex", flexDirection: "column", gap: "8px", height: "100px", justifyContent: "center" }}>
+            <FaWalking style={{ fontSize: "20px", color: "var(--accent-color)" }} />
+            <span>Video Gait Analysis</span>
           </Link>
           <Link to="/history" className="btn-secondary" style={{ padding: "18px 24px", borderRadius: "14px", display: "flex", flexDirection: "column", gap: "8px", height: "100px", justifyContent: "center" }}>
             <FaHistory style={{ fontSize: "20px", color: "var(--secondary-color)" }} />
@@ -236,11 +241,11 @@ export default function Dashboard() {
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "10px" }}>
                 <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Confidence Stability:</span>
-                <strong>{stats.latestPrediction.confidence.toFixed(2)}%</strong>
+                <strong>{typeof stats.latestPrediction?.confidence === "number" ? `${stats.latestPrediction.confidence.toFixed(2)}%` : "N/A"}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Diagnostic Class Outcome:</span>
-                <strong>Label {stats.latestPrediction.label} ({stats.latestPrediction.riskLevel} Risk)</strong>
+                <strong>{stats.latestPrediction.label !== null && stats.latestPrediction.label !== undefined ? `Label ${stats.latestPrediction.label}` : "Unclassified"} ({stats.latestPrediction.riskLevel} Risk)</strong>
               </div>
             </div>
           </div>
@@ -313,7 +318,9 @@ export default function Dashboard() {
                         {pred.riskLevel} Risk
                       </span>
                     </td>
-                    <td className="font-bold" style={{ color: "var(--text-main)" }}>{pred.confidence.toFixed(2)}%</td>
+                    <td className="font-bold" style={{ color: "var(--text-main)" }}>
+                      {typeof pred.confidence === "number" ? `${pred.confidence.toFixed(2)}%` : "N/A (Screening)"}
+                    </td>
                     <td>
                       <div className="actions-cell">
                         <Link to={`/result/${pred._id}`} className="btn-secondary btn-small">

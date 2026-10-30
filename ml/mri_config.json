@@ -1,0 +1,39 @@
+{
+  "architecture": "mobilenet_v2",
+  "modelVersion": "mri-mobilenetv2-v1.0.0",
+  "image_size": [
+    224,
+    224
+  ],
+  "norm_mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "norm_std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "classes": [
+    "Normal",
+    "PD"
+  ],
+  "class_to_idx": {
+    "Normal": 0,
+    "PD": 1
+  },
+  "idx_to_class": {
+    "0": "Normal",
+    "1": "PD"
+  },
+  "risk_mapping": {
+    "Normal": "Low",
+    "PD": "High"
+  },
+  "training_samples": 3492,
+  "validation_samples": 748,
+  "test_samples": 750,
+  "date_trained": "2026-10-23 01:46:34 UTC",
+  "disclaimer": "Experimental machine learning research model. Not certified for clinical diagnosis."
+}

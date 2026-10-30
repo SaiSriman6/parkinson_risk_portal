@@ -10,3 +10,8 @@ pydantic==2.7.4
 python-multipart==0.0.9
 soundfile==0.12.1
 scipy==1.13.1
+Pillow>=10.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python>=4.9.0
+mediapipe>=0.10.14

@@ -139,6 +139,7 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/predictions", require("./routes/predictionRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/video-analysis", require("./routes/videoAnalysisRoutes"));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
